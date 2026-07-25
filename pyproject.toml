@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cirq-sandbox"
+version = "0.1.0"
+description = "Quantum circuits on Google's Cirq Quantum Virtual Machine sandbox, with an opt-in path to the real cirq_google cloud Engine."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "cirq-core>=1.4.1",
+    "cirq-google>=1.4.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
