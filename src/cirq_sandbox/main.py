@@ -1,5 +1,7 @@
 import argparse
 
+import cirq
+
 from cirq_sandbox.circuits import bell_state_circuit, select_qubit_pair
 from cirq_sandbox.engine import (
     DEFAULT_PROCESSOR_ID,
@@ -34,8 +36,11 @@ def main(argv: list[str] | None = None) -> None:
     q0, q1 = select_qubit_pair(device)
 
     circuit = bell_state_circuit(q0, q1)
+    compiled = cirq.optimize_for_target_gateset(
+        circuit, gateset=device.metadata.compilation_target_gatesets[0]
+    )
     sampler = engine.get_sampler(args.processor_id)
-    result = sampler.run(circuit, repetitions=args.repetitions)
+    result = sampler.run(compiled, repetitions=args.repetitions)
 
     print(result.histogram(key="result"))
 
