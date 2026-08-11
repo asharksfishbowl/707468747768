@@ -4,3 +4,15 @@ __pycache__/
 .env
 credentials.json
 *service-account*.json
+# Dex pipeline (per-user, do not commit)
+issue-queue.groovy
+build-queue.groovy
+question-queue.groovy
+question-answers.groovy
+error-issues.groovy
+research/
+transcripts/
+# design-references (folder + .gitkeep/README.md committed; contents per-user)
+design-references/*
+!design-references/.gitkeep
+!design-references/README.md
