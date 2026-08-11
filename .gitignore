@@ -1,4 +1,5 @@
 .venv/
+.pyruntime/
 __pycache__/
 *.egg-info/
 .env
