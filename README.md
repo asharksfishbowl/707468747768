@@ -5,7 +5,22 @@ Builds and runs quantum circuits against Google Cirq's Quantum Virtual Machine
 Service (QCS) — with an opt-in path to the real `cirq_google.Engine` cloud
 service once you have GCP/QCS access.
 
-## Run modes
+This repo has two things in it:
+
+1. **`cirq_sandbox`** (`src/`) — the original Python CLI, a minimal script that
+   runs a hardcoded Bell-state circuit against the sandbox.
+2. **Cirq Sandbox Studio** (`services/api/` + `apps/studio/`) — a public,
+   multi-user web/iOS/Android product built on top of the same sandbox
+   engine: sign in, build circuits visually against a real device's qubit
+   topology, run them, and watch results stream in live. Full spec:
+   [`specs/cirq-sandbox-studio/cirq-sandbox-studio.md`](specs/cirq-sandbox-studio/cirq-sandbox-studio.md)
+   (implementation) and
+   [`specs/cirq-sandbox-studio/design-cirq-sandbox-studio.md`](specs/cirq-sandbox-studio/design-cirq-sandbox-studio.md)
+   (visual/interaction design).
+
+## `cirq_sandbox` CLI
+
+### Run modes
 
 **Sandbox (default)** — runs entirely locally via `cirq_google`'s virtual
 engine factory. No credentials, no GCP project, no network access required.
@@ -26,14 +41,14 @@ service via `cirq_google.Engine`. Requires:
 Copy `.env.example` to `.env` and fill in the two variables to configure the
 cloud path.
 
-## Setup
+### Setup
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-## Usage
+### Usage
 
 ```bash
 # Sandbox, noisy (default), Bell state circuit on the "weber" processor
@@ -49,15 +64,49 @@ python -m cirq_sandbox.main --processor-id rainbow
 python -m cirq_sandbox.main --cloud
 ```
 
+## Cirq Sandbox Studio
+
+### Backend (`services/api/`)
+
+FastAPI service exposing the sandbox engine over HTTP + WebSocket: Google
+OAuth/JWT auth, `GET /processors` (device topology + native gateset), circuit
+CRUD + public gallery + clone, `POST /runs` (validated, queued to Redis,
+chunked execution against the sandbox, live progress via
+`WS /runs/{id}/stream`).
+
+```bash
+source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env   # fill in DATABASE_URL, GOOGLE_OAUTH_*, JWT_SECRET_KEY, REDIS_URL
+
+alembic -c services/api/alembic.ini upgrade head   # apply the users/circuits/runs schema
+uvicorn app.main:app --app-dir services/api --reload   # API on :8000
+python -m app.worker --app-dir services/api            # run queue worker (separate process)
+```
+
+Requires a running Postgres (`DATABASE_URL`) and Redis (`REDIS_URL`) — see
+`.env.example` for every variable, including the abuse-limit knobs
+(`MAX_CONCURRENT_JOBS`, `JOB_TIMEOUT_SECONDS`) and the Google OAuth client
+config.
+
+### Client (`apps/studio/`)
+
+Expo (React Native Web) app — one codebase for web, iOS, and Android. Screens:
+Login, Builder (qubit-grid circuit builder + run panel with live-streaming
+results), My Circuits, Run History, Gallery.
+
+```bash
+cd apps/studio
+npm install
+npm run web      # or: npm run ios / npm run android
+```
+
+Point it at a running backend via `apps/studio/src/config.ts` (defaults to
+`http://localhost:8000`).
+
 ## Tests
 
 ```bash
-pytest
+pytest              # backend — src/cirq_sandbox + services/api
+cd apps/studio && npx tsc --noEmit   # client type-check
 ```
-
-## Note on how this was built
-
-This project was scaffolded in a container with no Python interpreter, pip,
-or package manager access available, so the code has **not** been executed
-or tested in-container — only written against verified Cirq API signatures.
-Before relying on it, run the Setup and Tests steps above locally to verify.
