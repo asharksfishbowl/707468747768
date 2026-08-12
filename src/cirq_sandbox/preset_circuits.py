@@ -15,6 +15,21 @@ class TopologyLike(Protocol):
     pairs: list[list[list[int]]]
 
 
+def hello_qubit_preset(topology: TopologyLike, processor_id: str) -> dict:
+    """SQRT_X + measure on a single qubit — Cirq's own canonical "Hello Qubit" first
+    example (https://quantumai.google/cirq/start/start), adapted to this app's JSON
+    shape. The simplest possible preset: one qubit, no connectivity requirement.
+    """
+    q0 = topology.qubits[0]
+    return {
+        "processor_id": processor_id,
+        "moments": [
+            [{"gate": "SQRT_X", "qubits": [q0]}],
+            [{"gate": "MEASURE", "qubits": [q0], "key": "result"}],
+        ],
+    }
+
+
 def bell_state_preset(topology: TopologyLike, processor_id: str) -> dict:
     """H + CNOT + measure on the first connected pair.
 

@@ -19,6 +19,7 @@ def _q(row, col):
         ("Z", cirq.Z(_q(0, 0))),
         ("S", cirq.S(_q(0, 0))),
         ("T", cirq.T(_q(0, 0))),
+        ("SQRT_X", (cirq.X**0.5)(_q(0, 0))),
     ],
 )
 def test_single_qubit_gates(gate_name, expected):

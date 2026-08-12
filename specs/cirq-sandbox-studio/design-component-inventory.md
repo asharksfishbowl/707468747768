@@ -27,7 +27,8 @@ frames.
   - Placement interaction: single-qubit gate → a qubit node; two-qubit gate → a
     connected edge only (Req 13) — needs a clear "not placeable here" affordance for
     non-adjacent pairs
-  - "Load preset" menu (Bell state, GHZ state, Superposition — Req 15)
+  - "Load preset" menu (Hello Qubit, Bell state, GHZ state, Superposition — Req 15,
+    in that order per Req 16)
   - Run panel: noisy/noiseless toggle, repetitions input (1-1000, client-validated),
     Run button
   - Live status badge: queued / running / done / error
