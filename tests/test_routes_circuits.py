@@ -1,8 +1,3 @@
-import pytest
-
-from app.auth import create_access_token
-from app.models import User
-
 _VALID_DEFINITION = {
     "processor_id": "weber",
     "moments": [
@@ -10,20 +5,6 @@ _VALID_DEFINITION = {
         [{"gate": "MEASURE", "qubits": [[0, 0]], "key": "result"}],
     ],
 }
-
-
-@pytest.fixture()
-def other_user(db_session):
-    u = User(google_id="other-google-id", email="bo@example.com", display_name="Bo")
-    db_session.add(u)
-    db_session.commit()
-    db_session.refresh(u)
-    return u
-
-
-@pytest.fixture()
-def other_auth_headers(other_user):
-    return {"Authorization": f"Bearer {create_access_token(other_user)}"}
 
 
 def _create(app_client, auth_headers, *, name="My Circuit", is_public=False, definition=None):

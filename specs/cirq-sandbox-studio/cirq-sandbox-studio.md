@@ -347,6 +347,12 @@ circuits with optional public sharing.
     Google fails for any reason, `GET /auth/google/callback` creates no `users` row
     and redirects to the client's Login screen with `?error=` set rather than issuing
     a token (Requirement 2); the client shows a "sign-in failed, try again" state.
+17. When `WS /runs/{id}/stream` targets a run that doesn't exist, or exists but isn't
+    owned by the connecting user (runs have no `is_public` concept, unlike circuits —
+    Requirement 35 is owner-only), the API closes the connection with code `4404`
+    before subscribing to any channel. This mirrors close code `4401`'s pattern of
+    encoding a REST status into the WS private close-code range (4000-4999, RFC 6455)
+    — same existence-hiding intent as Edge Case 9, extended to this transport.
 
 ## Acceptance Criteria
 

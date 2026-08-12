@@ -20,15 +20,34 @@ def get_sandbox_engine(processor_id: str = DEFAULT_PROCESSOR_ID, noisy: bool = T
 
 
 @lru_cache(maxsize=None)
-def get_device(processor_id: str = DEFAULT_PROCESSOR_ID, noisy: bool = True) -> cirq.Device:
-    """Cached `processor_id` -> device lookup. Building the noisy virtual machine is
-    expensive (~0.3s — it builds a full noise model from calibration data); the
-    device for a given `(processor_id, noisy)` pair never changes at runtime, so this
-    is safe to cache indefinitely rather than rebuilding it on every call (e.g. every
-    `GET /processors` request in services/api/app/routes/processors.py).
+def _cached_engine(processor_id: str, noisy: bool):
+    """Building the noisy virtual machine is expensive (~0.3s — it builds a full
+    noise model from calibration data); it's the same engine object regardless of
+    whether the caller wants the device, the sampler, or both, so `get_device` and
+    `get_sampler` both route through this one cache instead of each independently
+    calling `get_sandbox_engine` (which would build the noise model twice per job).
     """
-    engine = get_sandbox_engine(processor_id=processor_id, noisy=noisy)
-    return engine.get_processor(processor_id).get_device()
+    return get_sandbox_engine(processor_id=processor_id, noisy=noisy)
+
+
+def get_device(processor_id: str = DEFAULT_PROCESSOR_ID, noisy: bool = True) -> cirq.Device:
+    """Cached `processor_id` -> device lookup — see `_cached_engine`."""
+    return _cached_engine(processor_id, noisy).get_processor(processor_id).get_device()
+
+
+def get_sampler(processor_id: str = DEFAULT_PROCESSOR_ID, noisy: bool = True):
+    """Cached `processor_id` -> sampler lookup — see `_cached_engine`."""
+    return _cached_engine(processor_id, noisy).get_sampler(processor_id)
+
+
+def compile_to_device(circuit: cirq.Circuit, device: cirq.Device) -> cirq.Circuit:
+    """Compiles `circuit` to `device`'s native gateset. The same call already
+    verified working in `src/cirq_sandbox/main.py` (single source of truth for this
+    one line, reused by `services/api/app/worker.py` instead of re-typing it).
+    """
+    return cirq.optimize_for_target_gateset(
+        circuit, gateset=device.metadata.compilation_target_gatesets[0]
+    )
 
 
 def get_cloud_engine(project_id: str | None = None) -> cirq_google.Engine:
