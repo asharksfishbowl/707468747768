@@ -11,21 +11,10 @@ from app import auth
 from app.clock import utcnow
 from app.db import get_db
 from app.models import User
+from conftest import TEST_JWT_SECRET
 
 _FAKE_TOKEN_RESPONSE = {"access_token": "fake-google-access-token"}
 _FAKE_PROFILE = {"sub": "google-uid-1", "email": "ada@example.com", "name": "Ada Lovelace"}
-_TEST_JWT_SECRET = "test-secret-at-least-32-bytes-long!!"
-
-
-@pytest.fixture(autouse=True)
-def auth_env(monkeypatch):
-    monkeypatch.setenv("JWT_SECRET_KEY", _TEST_JWT_SECRET)
-    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_ID", "test-client-id")
-    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "test-client-secret")
-    monkeypatch.setenv(
-        "GOOGLE_OAUTH_REDIRECT_URI", "https://api.example.com/auth/google/callback"
-    )
-    monkeypatch.setenv("CLIENT_BASE_URL", "https://app.example.com")
 
 
 @pytest.fixture()
@@ -50,7 +39,7 @@ def client(db_session):
     return TestClient(test_app)
 
 
-def _make_token(user_id, secret=_TEST_JWT_SECRET, expires_delta=timedelta(hours=24)):
+def _make_token(user_id, secret=TEST_JWT_SECRET, expires_delta=timedelta(hours=24)):
     now = utcnow()
     payload = {"sub": str(user_id), "iat": now, "exp": now + expires_delta}
     return jwt.encode(payload, secret, algorithm=auth._JWT_ALGORITHM)
@@ -98,7 +87,7 @@ def test_callback_creates_user_on_first_login_and_reuses_on_second(client, db_se
         # Fragment, not a query param — see auth.py's google_callback docstring.
         assert location.startswith("https://app.example.com/auth/callback#token=")
         token = location.split("#token=", 1)[1]
-        payload = jwt.decode(token, _TEST_JWT_SECRET, algorithms=[auth._JWT_ALGORITHM])
+        payload = jwt.decode(token, TEST_JWT_SECRET, algorithms=[auth._JWT_ALGORITHM])
         assert payload["sub"] == str(db_session.query(User).one().id)
 
 
