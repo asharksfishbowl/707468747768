@@ -5,31 +5,22 @@ Builds and runs quantum circuits against Google Cirq's Quantum Virtual Machine
 Service (QCS) — with an opt-in path to the real `cirq_google.Engine` cloud
 service once you have GCP/QCS access.
 
-This repo has two parts:
+This repo has two things in it:
 
-- **The CLI** (`src/cirq_sandbox/`) — a standalone script that runs a single
-  hardcoded circuit against the sandbox or the real cloud engine. See
-  [CLI](#cli) below.
-- **Cirq Sandbox Studio** (`services/api/`) — a multi-user web/mobile product
-  being built on top of the same sandbox engine: sign in with Google, build
-  circuits visually, run them, save and share them. See
-  [Cirq Sandbox Studio](#cirq-sandbox-studio) below. Full spec:
-  [`specs/cirq-sandbox-studio/cirq-sandbox-studio.md`](specs/cirq-sandbox-studio/cirq-sandbox-studio.md).
+1. **`cirq_sandbox`** (`src/`) — the original Python CLI, a minimal script that
+   runs a hardcoded Bell-state circuit against the sandbox.
+2. **Cirq Sandbox Studio** (`services/api/` + `apps/studio/`) — a public,
+   multi-user web/iOS/Android product built on top of the same sandbox
+   engine: sign in, build circuits visually against a real device's qubit
+   topology, run them, and watch results stream in live. Full spec:
+   [`specs/cirq-sandbox-studio/cirq-sandbox-studio.md`](specs/cirq-sandbox-studio/cirq-sandbox-studio.md)
+   (implementation) and
+   [`specs/cirq-sandbox-studio/design-cirq-sandbox-studio.md`](specs/cirq-sandbox-studio/design-cirq-sandbox-studio.md)
+   (visual/interaction design).
 
-## Setup
+## `cirq_sandbox` CLI
 
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-```
-
-## Tests
-
-```bash
-pytest
-```
-
-## CLI
+### Run modes
 
 **Sandbox (default)** — runs entirely locally via `cirq_google`'s virtual
 engine factory. No credentials, no GCP project, no network access required.
@@ -49,6 +40,15 @@ service via `cirq_google.Engine`. Requires:
 
 Copy `.env.example` to `.env` and fill in the relevant variables (see below).
 
+### Setup
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+### Usage
+
 ```bash
 # Sandbox, noisy (default), Bell state circuit on the "weber" processor
 python -m cirq_sandbox.main
@@ -65,52 +65,59 @@ python -m cirq_sandbox.main --cloud
 
 ## Cirq Sandbox Studio
 
-A new HTTP/WebSocket API (`services/api/`) in front of the sandbox engine,
-plus an Expo client (`apps/studio/`, not yet built) providing a visual
-drag-and-drop circuit builder, live run results, and per-user saved circuits
-with optional public sharing. Full spec, requirements, edge cases, and
-acceptance criteria: `specs/cirq-sandbox-studio/cirq-sandbox-studio.md`.
+### Backend (`services/api/`)
 
-### Build status
+FastAPI service exposing the sandbox engine over HTTP + WebSocket: Google
+OAuth/JWT auth, `GET /processors` (device topology + native gateset), circuit
+CRUD + public gallery + clone, `POST /runs` (validated, queued to Redis,
+chunked execution against the sandbox, live progress via
+`WS /runs/{id}/stream`).
 
-| Piece | Status |
-|---|---|
-| Data model (`users`/`circuits`/`runs`, Alembic migration) | ✅ Built |
-| Qubit topology selection (BFS subgraph, ≤12 qubits) | ✅ Built |
-| Circuit builder (JSON definition → `cirq.Circuit`, 14 gate types incl. `SQRT_X`) | ✅ Built |
-| Presets (Hello Qubit, Bell state, GHZ state, Superposition) | ✅ Built |
-| Google OAuth + JWT auth, WS token auth | ✅ Built |
-| REST API (`GET /processors`, circuits CRUD, gallery, clone) | ✅ Built |
-| Runs (queueing, Redis worker, chunked execution, `WS /runs/{id}/stream`) | ✅ Built |
-| Expo client (`apps/studio/`) | Not yet built |
+```bash
+source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env   # fill in the variables below
 
-The pieces marked "Built" are implemented under `services/api/app/` with a
-full test suite (`pytest` covers all of them — see Tests above). The FastAPI
-app (`services/api/app/main.py`) is wired up and runnable
-(`uvicorn app.main:app`) with the complete backend API surface. The worker
-process (`python -m app.worker`) needs a real Redis server (`REDIS_URL`) to
-run against — tests use `fakeredis` instead, so `pytest` doesn't need one.
-Only the Expo client (`apps/studio/`) remains unbuilt.
+alembic -c services/api/alembic.ini upgrade head   # apply the users/circuits/runs schema
+uvicorn app.main:app --app-dir services/api --reload   # API on :8000
+python -m app.worker --app-dir services/api            # run queue worker (separate process)
+```
 
-### Environment variables
+Requires a running Postgres and Redis. Environment variables (see
+`.env.example`):
 
-Copy `.env.example` to `.env` and fill in what you need:
-
-- `DATABASE_URL` — Postgres connection string for `services/api`. Falls back
-  to a local dev default (see `services/api/app/db.py`) if unset.
+- `DATABASE_URL` — Postgres connection string. Falls back to a local dev
+  default (see `services/api/app/db.py`) if unset.
 - `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`,
   `GOOGLE_OAUTH_REDIRECT_URI` — Google OAuth client config for
   `services/api/app/auth.py`'s login/callback routes.
 - `JWT_SECRET_KEY` — signs the 24h access tokens `auth.py` issues.
 - `CLIENT_BASE_URL` — the client app's base URL; the OAuth callback redirects
   here on success/failure.
+- `REDIS_URL` — run queue backing store (`services/api/app/redis_client.py`,
+  `worker.py`). Tests use `fakeredis` instead, so `pytest` doesn't need a
+  real Redis server.
+- `MAX_CONCURRENT_JOBS`, `JOB_TIMEOUT_SECONDS` — abuse-limit knobs for the
+  run worker (defaults: 4, 120).
 
-### Database migrations
+### Client (`apps/studio/`)
+
+Expo (React Native Web) app — one codebase for web, iOS, and Android. Screens:
+Login, Builder (qubit-grid circuit builder + run panel with live-streaming
+results), My Circuits, Run History, Gallery.
 
 ```bash
-cd services/api
-alembic upgrade head
+cd apps/studio
+npm install
+npm run web      # or: npm run ios / npm run android
 ```
 
-`services/api/alembic/env.py` reads `DATABASE_URL` from the environment
-(falling back to `alembic.ini`'s own default) — see `.env.example`.
+Point it at a running backend via `apps/studio/src/config.ts` (defaults to
+`http://localhost:8000`).
+
+## Tests
+
+```bash
+pytest              # backend — src/cirq_sandbox + services/api
+cd apps/studio && npx tsc --noEmit   # client type-check
+```

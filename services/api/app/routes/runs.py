@@ -40,6 +40,11 @@ def _run_summary(run: Run) -> dict:
         "processor_id": run.processor_id,
         "noisy": run.noisy,
         "repetitions": run.repetitions,
+        # Requirement 39's immutable snapshot, surfaced so Run History (Requirement
+        # 44: "view its stored result and the circuit that produced it") has
+        # something to render -- without this the client has no way to reconstruct
+        # what was actually run.
+        "definition": run.definition,
         "result": run.result,
         "error_message": run.error_message,
         "created_at": run.created_at.isoformat(),
