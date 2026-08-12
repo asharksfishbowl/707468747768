@@ -5,7 +5,31 @@ Builds and runs quantum circuits against Google Cirq's Quantum Virtual Machine
 Service (QCS) — with an opt-in path to the real `cirq_google.Engine` cloud
 service once you have GCP/QCS access.
 
-## Run modes
+This repo has two parts:
+
+- **The CLI** (`src/cirq_sandbox/`) — a standalone script that runs a single
+  hardcoded circuit against the sandbox or the real cloud engine. See
+  [CLI](#cli) below.
+- **Cirq Sandbox Studio** (`services/api/`) — a multi-user web/mobile product
+  being built on top of the same sandbox engine: sign in with Google, build
+  circuits visually, run them, save and share them. See
+  [Cirq Sandbox Studio](#cirq-sandbox-studio) below. Full spec:
+  [`specs/cirq-sandbox-studio/cirq-sandbox-studio.md`](specs/cirq-sandbox-studio/cirq-sandbox-studio.md).
+
+## Setup
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+## Tests
+
+```bash
+pytest
+```
+
+## CLI
 
 **Sandbox (default)** — runs entirely locally via `cirq_google`'s virtual
 engine factory. No credentials, no GCP project, no network access required.
@@ -23,17 +47,7 @@ service via `cirq_google.Engine`. Requires:
 3. `GOOGLE_CLOUD_PROJECT` set to your project id (or pass it explicitly to
    `get_cloud_engine(project_id=...)`).
 
-Copy `.env.example` to `.env` and fill in the two variables to configure the
-cloud path.
-
-## Setup
-
-```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-```
-
-## Usage
+Copy `.env.example` to `.env` and fill in the relevant variables (see below).
 
 ```bash
 # Sandbox, noisy (default), Bell state circuit on the "weber" processor
@@ -49,15 +63,51 @@ python -m cirq_sandbox.main --processor-id rainbow
 python -m cirq_sandbox.main --cloud
 ```
 
-## Tests
+## Cirq Sandbox Studio
+
+A new HTTP/WebSocket API (`services/api/`) in front of the sandbox engine,
+plus an Expo client (`apps/studio/`, not yet built) providing a visual
+drag-and-drop circuit builder, live run results, and per-user saved circuits
+with optional public sharing. Full spec, requirements, edge cases, and
+acceptance criteria: `specs/cirq-sandbox-studio/cirq-sandbox-studio.md`.
+
+### Build status
+
+| Piece | Status |
+|---|---|
+| Data model (`users`/`circuits`/`runs`, Alembic migration) | ✅ Built |
+| Qubit topology selection (BFS subgraph, ≤12 qubits) | ✅ Built |
+| Circuit builder (JSON definition → `cirq.Circuit`, 14 gate types incl. `SQRT_X`) | ✅ Built |
+| Presets (Hello Qubit, Bell state, GHZ state, Superposition) | ✅ Built |
+| Google OAuth + JWT auth, WS token auth | ✅ Built |
+| REST API (`GET /processors`, circuits CRUD, gallery, clone) | Not yet built |
+| Runs (queueing, Redis worker, chunked execution, `WS /runs/{id}/stream`) | Not yet built |
+| Expo client (`apps/studio/`) | Not yet built |
+
+The pieces marked "Built" are implemented under `services/api/app/` with a
+full test suite (`pytest` covers all of them — see Tests above) but aren't
+yet wired into a running FastAPI app; that's `services/api/app/main.py`,
+part of the REST API work above.
+
+### Environment variables
+
+Copy `.env.example` to `.env` and fill in what you need:
+
+- `DATABASE_URL` — Postgres connection string for `services/api`. Falls back
+  to a local dev default (see `services/api/app/db.py`) if unset.
+- `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`,
+  `GOOGLE_OAUTH_REDIRECT_URI` — Google OAuth client config for
+  `services/api/app/auth.py`'s login/callback routes.
+- `JWT_SECRET_KEY` — signs the 24h access tokens `auth.py` issues.
+- `CLIENT_BASE_URL` — the client app's base URL; the OAuth callback redirects
+  here on success/failure.
+
+### Database migrations
 
 ```bash
-pytest
+cd services/api
+alembic upgrade head
 ```
 
-## Note on how this was built
-
-This project was scaffolded in a container with no Python interpreter, pip,
-or package manager access available, so the code has **not** been executed
-or tested in-container — only written against verified Cirq API signatures.
-Before relying on it, run the Setup and Tests steps above locally to verify.
+`services/api/alembic/env.py` reads `DATABASE_URL` from the environment
+(falling back to `alembic.ini`'s own default) — see `.env.example`.
