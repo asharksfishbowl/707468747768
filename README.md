@@ -80,14 +80,15 @@ acceptance criteria: `specs/cirq-sandbox-studio/cirq-sandbox-studio.md`.
 | Circuit builder (JSON definition → `cirq.Circuit`, 14 gate types incl. `SQRT_X`) | ✅ Built |
 | Presets (Hello Qubit, Bell state, GHZ state, Superposition) | ✅ Built |
 | Google OAuth + JWT auth, WS token auth | ✅ Built |
-| REST API (`GET /processors`, circuits CRUD, gallery, clone) | Not yet built |
+| REST API (`GET /processors`, circuits CRUD, gallery, clone) | ✅ Built |
 | Runs (queueing, Redis worker, chunked execution, `WS /runs/{id}/stream`) | Not yet built |
 | Expo client (`apps/studio/`) | Not yet built |
 
 The pieces marked "Built" are implemented under `services/api/app/` with a
-full test suite (`pytest` covers all of them — see Tests above) but aren't
-yet wired into a running FastAPI app; that's `services/api/app/main.py`,
-part of the REST API work above.
+full test suite (`pytest` covers all of them — see Tests above). The FastAPI
+app (`services/api/app/main.py`) is wired up and runnable
+(`uvicorn app.main:app`) but only serves the auth, processors, and circuits
+routes so far — runs and the WebSocket stream are Phase 4.
 
 ### Environment variables
 
