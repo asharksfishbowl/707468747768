@@ -22,6 +22,7 @@ _SINGLE_QUBIT_GATES: dict[str, cirq.Gate] = {
     "Z": cirq.Z,
     "S": cirq.S,
     "T": cirq.T,
+    "SQRT_X": cirq.X**0.5,
 }
 
 _TWO_QUBIT_GATES: dict[str, cirq.Gate] = {
