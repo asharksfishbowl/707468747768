@@ -236,6 +236,14 @@ def test_get_run_by_non_owner_returns_404(app_client, auth_headers, other_auth_h
     assert response.status_code == 404
 
 
+def test_get_run_includes_definition_snapshot(app_client, auth_headers):
+    """Requirement 39/44: Run History needs the immutable circuit snapshot to
+    render "the circuit that produced" a run, not just its result."""
+    created = app_client.post("/runs", headers=auth_headers, json=_run_body()).json()
+    response = app_client.get(f"/runs/{created['run_id']}", headers=auth_headers)
+    assert response.json()["definition"] == _VALID_DEFINITION
+
+
 def test_list_my_runs_returns_only_own_newest_first(
     app_client, auth_headers, other_auth_headers
 ):
