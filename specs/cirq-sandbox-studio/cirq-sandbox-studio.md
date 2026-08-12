@@ -94,34 +94,42 @@ circuits with optional public sharing.
     ```
     Each entry in a moment is one gate placement. `qubits` are `[row, col]` pairs that
     must be members of the processor's `topology.qubits` (Requirement 9).
-12. Supported `gate` values: `H`, `X`, `Y`, `Z`, `S`, `T`, `CNOT`, `CZ`, `SWAP`,
-    `RX`, `RY`, `RZ`, `MEASURE`. `RX`/`RY`/`RZ` require a numeric `angle_radians`
-    field. `MEASURE` requires a `key` field (string, unique per circuit).
+12. Supported `gate` values: `H`, `X`, `Y`, `Z`, `S`, `T`, `SQRT_X`, `CNOT`, `CZ`,
+    `SWAP`, `RX`, `RY`, `RZ`, `MEASURE`. `RX`/`RY`/`RZ` require a numeric
+    `angle_radians` field. `MEASURE` requires a `key` field (string, unique per
+    circuit). `SQRT_X` (the square-root-of-NOT gate, `cirq.X ** 0.5` — Cirq's own
+    canonical "Hello Qubit" first example) takes no extra fields.
 13. `CNOT`, `CZ`, and `SWAP` are two-qubit gates; their `qubits` pair must appear in
     the processor's `topology.pairs` (Requirement 9) for that circuit's
     `processor_id`. All other gates (besides `MEASURE`, which can span any number of
     the circuit's placed qubits) take exactly one qubit.
 14. A new module `services/api/app/circuit_builder.py` converts this JSON into a
     `cirq.Circuit` on `cirq_google.GridQubit` instances: `X`→`cirq.X`, `Y`→`cirq.Y`,
-    `Z`→`cirq.Z`, `H`→`cirq.H`, `S`→`cirq.S`, `T`→`cirq.T`, `CNOT`→`cirq.CNOT`,
-    `CZ`→`cirq.CZ`, `SWAP`→`cirq.SWAP`, `RX`→`cirq.rx(angle_radians)`,
-    `RY`→`cirq.ry(angle_radians)`, `RZ`→`cirq.rz(angle_radians)`,
-    `MEASURE`→`cirq.measure(*qubits, key=key)`.
+    `Z`→`cirq.Z`, `H`→`cirq.H`, `S`→`cirq.S`, `T`→`cirq.T`, `SQRT_X`→`cirq.X ** 0.5`,
+    `CNOT`→`cirq.CNOT`, `CZ`→`cirq.CZ`, `SWAP`→`cirq.SWAP`,
+    `RX`→`cirq.rx(angle_radians)`, `RY`→`cirq.ry(angle_radians)`,
+    `RZ`→`cirq.rz(angle_radians)`, `MEASURE`→`cirq.measure(*qubits, key=key)`.
 
 ### Presets
 
 15. A new module `src/cirq_sandbox/preset_circuits.py` provides preset generators that
     take a `topology` (Requirement 9's shape) and return a JSON circuit definition
-    (Requirement 11's shape) using qubits from that topology: `bell_state_preset`
-    (reuses `bell_state_circuit`'s H+CNOT+measure structure from `circuits.py`, adapted
-    to emit JSON instead of a `cirq.Circuit`, using the first connected pair in
+    (Requirement 11's shape) using qubits from that topology: `hello_qubit_preset`
+    (Cirq's own canonical first example, adapted to this app's JSON shape: `SQRT_X` on
+    `topology.qubits[0]`, then measure that one qubit — the simplest possible preset,
+    single qubit, no connectivity requirement), `bell_state_preset` (reuses
+    `bell_state_circuit`'s H+CNOT+measure structure from `circuits.py`, adapted to emit
+    JSON instead of a `cirq.Circuit`, using the first connected pair in
     `topology.pairs`), `ghz_state_preset` (H on `topology.qubits[0]`, then a CNOT chain
     from that qubit outward along `topology.pairs` covering `min(4,
     len(topology.qubits))` total qubits — 4 by default, fewer only if the processor's
     topology itself has fewer than 4 qubits — then measure all qubits used),
     `superposition_preset` (H on every qubit in the topology, then measure all).
-16. `GET /circuits/presets?processor_id=<id>` returns all three presets generated
-    against that processor's topology.
+16. `GET /circuits/presets?processor_id=<id>` returns all four presets generated
+    against that processor's topology, in this order: `hello_qubit_preset`,
+    `bell_state_preset`, `ghz_state_preset`, `superposition_preset` — Hello Qubit
+    first, matching Cirq's own recommended learning progression (simplest example
+    first).
 
 ### Saved circuits and gallery
 

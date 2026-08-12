@@ -9,11 +9,13 @@ testable without a live Postgres server — JSONB itself has no SQLite equivalen
 
 import enum
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import JSON, Enum, ForeignKey, String, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
+from app.clock import utcnow as _utcnow
 
 _JSONB = JSONB().with_variant(JSON(), "sqlite")
 
@@ -31,10 +33,6 @@ class RunStatus(str, enum.Enum):
 
 def _new_uuid() -> uuid.UUID:
     return uuid.uuid4()
-
-
-def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 class User(Base):
