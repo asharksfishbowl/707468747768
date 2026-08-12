@@ -81,14 +81,16 @@ acceptance criteria: `specs/cirq-sandbox-studio/cirq-sandbox-studio.md`.
 | Presets (Hello Qubit, Bell state, GHZ state, Superposition) | ✅ Built |
 | Google OAuth + JWT auth, WS token auth | ✅ Built |
 | REST API (`GET /processors`, circuits CRUD, gallery, clone) | ✅ Built |
-| Runs (queueing, Redis worker, chunked execution, `WS /runs/{id}/stream`) | Not yet built |
+| Runs (queueing, Redis worker, chunked execution, `WS /runs/{id}/stream`) | ✅ Built |
 | Expo client (`apps/studio/`) | Not yet built |
 
 The pieces marked "Built" are implemented under `services/api/app/` with a
 full test suite (`pytest` covers all of them — see Tests above). The FastAPI
 app (`services/api/app/main.py`) is wired up and runnable
-(`uvicorn app.main:app`) but only serves the auth, processors, and circuits
-routes so far — runs and the WebSocket stream are Phase 4.
+(`uvicorn app.main:app`) with the complete backend API surface. The worker
+process (`python -m app.worker`) needs a real Redis server (`REDIS_URL`) to
+run against — tests use `fakeredis` instead, so `pytest` doesn't need one.
+Only the Expo client (`apps/studio/`) remains unbuilt.
 
 ### Environment variables
 
