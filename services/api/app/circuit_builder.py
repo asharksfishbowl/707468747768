@@ -65,3 +65,26 @@ def _build_operation(placement: dict[str, Any]) -> cirq.Operation:
 def _qubit(row_col: list[int]) -> cirq.GridQubit:
     row, col = row_col
     return cirq.GridQubit(row, col)
+
+
+def native_gate_names(gateset: cirq.Gateset) -> list[str]:
+    """Returns which of this module's supported gate names (Requirement 12) `gateset`
+    accepts natively, for `GET /processors`'s `native_gates` field (Requirement 8,
+    Phase 3). Reuses the same gate-name -> `cirq.Gate` maps `build_circuit` uses, so
+    the two never drift apart. Gateset membership is checked per-operation (not per
+    bare gate), so placeholder qubits are used — their identity doesn't affect
+    gate-type membership. RX/RY/RZ are probed at one arbitrary angle (0.3), assuming
+    gateset membership for them is angle-independent (a type-based GateFamily match,
+    not an instance-based one) — true for all 3 sandbox processors today; would need
+    revisiting if a future gateset restricts these to specific angles.
+    """
+    q0, q1 = cirq.GridQubit(0, 0), cirq.GridQubit(0, 1)
+    sample_ops = {
+        **{name: gate.on(q0) for name, gate in _SINGLE_QUBIT_GATES.items()},
+        **{name: gate.on(q0, q1) for name, gate in _TWO_QUBIT_GATES.items()},
+        **{
+            name: factory(0.3).on(q0) for name, factory in _PARAMETERIZED_GATES.items()
+        },
+        "MEASURE": cirq.measure(q0, key="native_gates_probe"),
+    }
+    return [name for name, op in sample_ops.items() if op in gateset]

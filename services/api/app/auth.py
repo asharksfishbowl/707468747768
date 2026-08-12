@@ -59,6 +59,21 @@ def _env(name: str) -> str:
     return value
 
 
+def validate_required_env() -> None:
+    """Called once at app startup (see services/api/app/main.py's lifespan), so a
+    misconfigured deployment fails fast at boot instead of on the first request that
+    happens to need one of these.
+    """
+    for name in (
+        _ENV_JWT_SECRET_KEY,
+        _ENV_GOOGLE_CLIENT_ID,
+        _ENV_GOOGLE_CLIENT_SECRET,
+        _ENV_GOOGLE_REDIRECT_URI,
+        _ENV_CLIENT_BASE_URL,
+    ):
+        _env(name)
+
+
 # ---------------------------------------------------------------------------
 # JWT issuance / verification (Requirements 2, 4, 5, 6)
 # ---------------------------------------------------------------------------
