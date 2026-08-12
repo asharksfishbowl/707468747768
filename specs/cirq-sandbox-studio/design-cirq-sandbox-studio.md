@@ -53,8 +53,8 @@ circuit-building sessions and must work as well on a phone as a desktop.
 - **Gate category colors** (used for palette items, armed-gate glow, placed-gate fill,
   and adjacency-ring previews):
   - Single-qubit rotation gates (`RX`, `RY`, `RZ`): cyan `#4FD8E8`.
-  - Pauli gates (`X`, `Y`, `Z`) and `H`, `S`, `T` (non-rotation single-qubit gates):
-    violet `#B98FF0`.
+  - Pauli gates (`X`, `Y`, `Z`), `H`, `S`, `T`, and `SQRT_X` (non-rotation
+    single-qubit gates): violet `#B98FF0`.
   - Two-qubit gates (`CNOT`, `CZ`, `SWAP`): coral `#E8734A`.
   - `MEASURE`: neutral white-outline (`#E8EDF2` stroke, transparent/no fill) —
     deliberately distinct from the three filled-color categories so it's never
