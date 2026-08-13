@@ -18,6 +18,37 @@ This repo has two things in it:
    [`specs/cirq-sandbox-studio/design-cirq-sandbox-studio.md`](specs/cirq-sandbox-studio/design-cirq-sandbox-studio.md)
    (visual/interaction design).
 
+## Quick start (Docker)
+
+The fastest way to run the whole Cirq Sandbox Studio stack (Postgres, Redis,
+API, worker, Expo web client) locally:
+
+```bash
+cp .env.example .env   # fill in GOOGLE_OAUTH_*/JWT_SECRET_KEY, see below
+make up                # docker compose up -d postgres redis api worker client-web
+make migrate           # applies the users/circuits/runs schema
+make seed               # optional: dev user + sample circuits/runs, safe to re-run
+make test               # pytest (local .venv, no Docker) + client tsc --noEmit
+make logs                # follow all services' logs
+make down                # stop everything (keeps the postgres volume)
+```
+
+`make up` refuses to start if `.env` doesn't exist yet — copy `.env.example`
+first. Migrations are never applied automatically by any service; `make
+migrate` is the only way schema changes land, run it explicitly after the
+stack is healthy. See `Makefile` and `docker-compose.yml` for the individual
+commands each target wraps, and
+[`specs/cirq-studio-tooling/cirq-studio-tooling.md`](specs/cirq-studio-tooling/cirq-studio-tooling.md)
+for the full spec.
+
+To verify the production Expo web build (not part of the default `make up`
+profile): `docker compose --profile prod up client-web-prod` — serves the
+static export on :8082, independent of the dev server on :8081.
+
+The manual, non-Docker setup below remains valid and is what `make test`
+itself uses for the backend (`pytest` runs against the local `.venv`, not
+inside a container).
+
 ## `cirq_sandbox` CLI
 
 ### Run modes
@@ -115,9 +146,39 @@ npm run web      # or: npm run ios / npm run android
 Point it at a running backend via `apps/studio/src/config.ts` (defaults to
 `http://localhost:8000`).
 
+### `cirq-studio` operations CLI
+
+A separately-installed terminal client for the running API — submit and
+watch circuit runs without opening the web/mobile client. Installed
+alongside the rest of this package (`pip install -e ".[dev]"` above also
+gives you the `cirq-studio` command via `[project.scripts]`).
+
+```bash
+cirq-studio auth login                 # Google device-code flow (no browser redirect back to a local port)
+cirq-studio auth whoami
+cirq-studio runs create --file circuit.json --processor weber --noisy --repetitions 500
+cirq-studio runs watch <run_id>        # live status + streaming histogram, plain text
+cirq-studio runs list
+cirq-studio auth logout
+```
+
+`cirq-studio` targets `CIRQ_STUDIO_API_URL` (default `http://localhost:8000`)
+and stores its session at `~/.config/cirq-studio/credentials.json` (mode
+`0600`). Every `runs` subcommand triggers the device-code flow automatically
+if no valid session is stored; `auth whoami` is read-only and never does.
+
+Signing in requires a **second** Google Cloud OAuth client, of type "TV and
+Limited Input devices" (distinct from the web-application client used by the
+browser flow above) — set `GOOGLE_OAUTH_DEVICE_CLIENT_ID`/
+`GOOGLE_OAUTH_DEVICE_CLIENT_SECRET` in `.env` (see `.env.example`). This is a
+manual step in the Google Cloud Console, same as the web OAuth client.
+
 ## Tests
 
 ```bash
 pytest              # backend — src/cirq_sandbox + services/api
 cd apps/studio && npx tsc --noEmit   # client type-check
 ```
+
+Or, via Docker: `make test` runs both (pytest against the local `.venv`, then
+the client type-check), failing if either does — see Quick start above.
