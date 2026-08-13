@@ -22,6 +22,9 @@ import jwt
 from fastapi import APIRouter, Depends, Header, HTTPException, WebSocket
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import RedirectResponse
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token as google_id_token
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.clock import utcnow
@@ -44,6 +47,12 @@ _ENV_GOOGLE_CLIENT_ID = "GOOGLE_OAUTH_CLIENT_ID"
 _ENV_GOOGLE_CLIENT_SECRET = "GOOGLE_OAUTH_CLIENT_SECRET"
 _ENV_GOOGLE_REDIRECT_URI = "GOOGLE_OAUTH_REDIRECT_URI"
 _ENV_CLIENT_BASE_URL = "CLIENT_BASE_URL"
+# Used only by /auth/google/device-exchange below (Requirement 32) -- deliberately
+# NOT added to validate_required_env()'s startup check: the device-code flow (Cirq
+# Studio Tooling spec) is an optional CLI-auth path, unlike the web OAuth vars above
+# which the whole API depends on to boot usefully. A deployment that never uses the
+# CLI shouldn't be forced to configure a second OAuth client just to start.
+_ENV_GOOGLE_DEVICE_CLIENT_ID = "GOOGLE_OAUTH_DEVICE_CLIENT_ID"
 
 router = APIRouter()
 
@@ -244,3 +253,40 @@ def google_callback(
 def auth_me(user: User = Depends(require_auth)) -> dict:
     """Returns the authenticated user's id, email, and display name (Requirement 6)."""
     return {"id": str(user.id), "email": user.email, "display_name": user.display_name}
+
+
+# ---------------------------------------------------------------------------
+# Device-code auth flow (cirq-studio-tooling.md Requirements 29-33)
+# ---------------------------------------------------------------------------
+
+
+class DeviceExchangeRequest(BaseModel):
+    id_token: str
+
+
+@router.post("/auth/google/device-exchange")
+def google_device_exchange(
+    body: DeviceExchangeRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Requirement 32: the CLI-facing counterpart to `google_callback` above --
+    verifies a Google `id_token` (obtained by `cirq-studio`'s own device-code polling,
+    Requirement 31) instead of exchanging an authorization code, but funnels into the
+    SAME user-upsert/JWT-issuance helpers so first-login-creates/subsequent-logins-reuse
+    behavior (Requirement 2) is identical either way. Returns JSON (`{"token": ...}`),
+    not a redirect -- the caller is a terminal, not a browser.
+    """
+    audience = _env(_ENV_GOOGLE_DEVICE_CLIENT_ID)
+    try:
+        claims = google_id_token.verify_oauth2_token(
+            body.id_token, google_requests.Request(), audience=audience
+        )
+    except Exception:
+        # Edge Case 6: no `users` row created on a failed verification -- same
+        # "no side effects on a failed auth attempt" principle as Edge Case 16's
+        # web-callback failure path above.
+        raise HTTPException(status_code=401, detail="invalid id_token")
+
+    profile = {"sub": claims["sub"], "email": claims["email"], "name": claims.get("name")}
+    user = _get_or_create_user(db, profile)
+    return {"token": create_access_token(user)}

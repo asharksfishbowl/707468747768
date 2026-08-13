@@ -30,6 +30,10 @@ def auth_env(monkeypatch):
         "GOOGLE_OAUTH_REDIRECT_URI", "https://api.example.com/auth/google/callback"
     )
     monkeypatch.setenv("CLIENT_BASE_URL", "https://app.example.com")
+    # cirq-studio-tooling.md's device-code flow (Requirement 29) — a second,
+    # separate OAuth client from the web one above.
+    monkeypatch.setenv("GOOGLE_OAUTH_DEVICE_CLIENT_ID", "test-device-client-id")
+    monkeypatch.setenv("GOOGLE_OAUTH_DEVICE_CLIENT_SECRET", "test-device-client-secret")
 
 
 @pytest.fixture()

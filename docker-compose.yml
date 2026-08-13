@@ -1,0 +1,82 @@
+# Local dev stack for Cirq Sandbox Studio (spec: specs/cirq-studio-tooling/cirq-studio-tooling.md,
+# Requirements 1-8). Bring the default profile up with `make up` (see Makefile) —
+# migrations are NOT run automatically by any service here (Requirement 8); run
+# `make migrate` explicitly after the stack is healthy.
+
+# `api` and `worker` share one image (same Dockerfile, same build context) --
+# anchored here so Compose builds it once and both services reference the same
+# tag, differing only in `command:`, instead of building the identical image twice.
+x-api-image: &api-image
+  build:
+    context: .
+    dockerfile: services/api/Dockerfile
+  image: cirq-studio-api:local
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  env_file: .env
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: cirq_sandbox
+      POSTGRES_PASSWORD: cirq_sandbox
+      POSTGRES_DB: cirq_sandbox
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cirq_sandbox"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    # No volume — the run queue is disposable (Requirement 3): a lost queue on
+    # restart just drops in-flight jobs, matching worker.py's existing
+    # "jobs stay queued until a slot frees" semantics, no stronger durability
+    # promised anywhere else in this system.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    <<: *api-image
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --app-dir services/api
+    ports:
+      - "8000:8000"
+
+  worker:
+    <<: *api-image
+    command: python -m app.worker --app-dir services/api
+    # No published port — the worker has no HTTP surface of its own.
+
+  client-web:
+    build:
+      context: apps/studio
+      dockerfile: Dockerfile
+      target: dev
+    command: npx expo start --web --port 8081
+    ports:
+      - "8081:8081"
+
+  # Verifies the production Expo web export works — not part of the default
+  # dev profile (Requirement 7): `docker compose --profile prod up
+  # client-web-prod`, independent of whether `client-web` (dev, 8081) is
+  # also running (Edge Case 11 — distinct host ports, no collision).
+  client-web-prod:
+    build:
+      context: apps/studio
+      dockerfile: Dockerfile
+      target: prod
+    profiles: ["prod"]
+    ports:
+      - "8082:8082"
+
+volumes:
+  postgres_data:

@@ -221,3 +221,50 @@ def test_ws_without_a_valid_token_closes_with_4401_before_subscribing(
         with client.websocket_connect(make_url(db_session)):
             pass
     assert exc_info.value.code == 4401
+
+
+# ---------------------------------------------------------------------------
+# POST /auth/google/device-exchange (cirq-studio-tooling.md Requirement 32,
+# Edge Case 6)
+# ---------------------------------------------------------------------------
+
+_FAKE_DEVICE_CLAIMS = {
+    "sub": "device-google-uid",
+    "email": "cli-user@example.com",
+    "name": "CLI User",
+}
+
+
+def test_device_exchange_creates_user_on_first_login_and_reuses_on_second(
+    client, db_session
+):
+    with patch("app.auth.google_id_token.verify_oauth2_token", return_value=_FAKE_DEVICE_CLAIMS):
+        first = client.post("/auth/google/device-exchange", json={"id_token": "fake"})
+        second = client.post("/auth/google/device-exchange", json={"id_token": "fake"})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert "token" in first.json() and "token" in second.json()
+    assert db_session.query(User).filter_by(google_id="device-google-uid").count() == 1
+
+
+def test_device_exchange_calls_verify_with_device_client_id_as_audience(client):
+    with patch(
+        "app.auth.google_id_token.verify_oauth2_token", return_value=_FAKE_DEVICE_CLAIMS
+    ) as mock_verify:
+        client.post("/auth/google/device-exchange", json={"id_token": "fake"})
+
+    assert mock_verify.call_args.kwargs["audience"] == "test-device-client-id"
+
+
+def test_device_exchange_with_invalid_token_returns_401_and_creates_no_user(
+    client, db_session
+):
+    with patch(
+        "app.auth.google_id_token.verify_oauth2_token",
+        side_effect=ValueError("invalid signature"),
+    ):
+        response = client.post("/auth/google/device-exchange", json={"id_token": "tampered"})
+
+    assert response.status_code == 401
+    assert db_session.query(User).count() == 0
